@@ -16,36 +16,49 @@
 class COBSBridgeNode : public rclcpp::Node {
 public:
   COBSBridgeNode() : Node("cobs_bridge_node") {
-    rx_pub_ = this->create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>("~/rx", 10);
-    serial_write_pub_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>("serial_write", 10);
+    rx_pub_ = this->create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>(
+        "~/rx", 10);
+    serial_write_pub_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(
+        "serial_write", 10);
 
-    tx_sub_ = this->create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-        "~/tx", 10, std::bind(&COBSBridgeNode::tx_sub_cb, this, std::placeholders::_1));
-    serial_read_sub_ = this->create_subscription<std_msgs::msg::UInt8MultiArray>(
-        "serial_read", 10, std::bind(&COBSBridgeNode::serial_read_sub_cb, this, std::placeholders::_1));
+    tx_sub_ =
+        this->create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
+            "~/tx", 10,
+            std::bind(&COBSBridgeNode::tx_sub_cb, this, std::placeholders::_1));
+    serial_read_sub_ =
+        this->create_subscription<std_msgs::msg::UInt8MultiArray>(
+            "serial_read", 10,
+            std::bind(&COBSBridgeNode::serial_read_sub_cb, this,
+                      std::placeholders::_1));
   }
 
 private:
   std::deque<uint8_t> serial_read_queue_;
   std::vector<uint8_t> rx_buf_;
 
-  rclcpp::Publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>::SharedPtr rx_pub_;
-  rclcpp::Publisher<std_msgs::msg::UInt8MultiArray>::SharedPtr serial_write_pub_;
+  rclcpp::Publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>::SharedPtr
+      rx_pub_;
+  rclcpp::Publisher<std_msgs::msg::UInt8MultiArray>::SharedPtr
+      serial_write_pub_;
 
-  rclcpp::Subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>::SharedPtr tx_sub_;
-  rclcpp::Subscription<std_msgs::msg::UInt8MultiArray>::SharedPtr serial_read_sub_;
+  rclcpp::Subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>::SharedPtr
+      tx_sub_;
+  rclcpp::Subscription<std_msgs::msg::UInt8MultiArray>::SharedPtr
+      serial_read_sub_;
 
   void tx_sub_cb(const cobs_bridge_msgs::msg::COBSBridgeMessage &msg) {
     std_msgs::msg::UInt8MultiArray tx_msg;
     // id(1 byte) + data(n byte) + checksum(1 byte) + delimiter(1 byte)
     tx_msg.data.resize(COBS_ENCODE_DST_BUF_LEN_MAX(msg.data.size()) + 3);
     cobs_encode_result res =
-        cobs_encode(tx_msg.data.data() + 1, tx_msg.data.size() - 3, msg.data.data(), msg.data.size());
+        cobs_encode(tx_msg.data.data() + 1, tx_msg.data.size() - 3,
+                    msg.data.data(), msg.data.size());
     if (res.status != COBS_ENCODE_OK) {
       return;
     }
     tx_msg.data[0] = msg.id;
-    tx_msg.data[res.out_len + 1] = checksum(tx_msg.data.data(), res.out_len + 1);
+    tx_msg.data[res.out_len + 1] =
+        checksum(tx_msg.data.data(), res.out_len + 1);
     tx_msg.data[res.out_len + 2] = 0; // delimiter
     tx_msg.data.resize(res.out_len + 3);
     serial_write_pub_->publish(tx_msg);
@@ -61,14 +74,16 @@ private:
         return;
       }
 
-      if (checksum(rx_buf_.data(), rx_buf_.size() - 2) != rx_buf_[rx_buf_.size() - 2]) {
+      if (checksum(rx_buf_.data(), rx_buf_.size() - 2) !=
+          rx_buf_[rx_buf_.size() - 2]) {
         rx_buf_.clear();
         return;
       }
       cobs_bridge_msgs::msg::COBSBridgeMessage rx_msg;
       rx_msg.data.resize(COBS_DECODE_DST_BUF_LEN_MAX(rx_buf_.size() - 3));
       cobs_decode_result res =
-          cobs_decode(rx_msg.data.data(), rx_msg.data.size(), rx_buf_.data() + 1, rx_buf_.size() - 3);
+          cobs_decode(rx_msg.data.data(), rx_msg.data.size(),
+                      rx_buf_.data() + 1, rx_buf_.size() - 3);
       if (res.status != COBS_DECODE_OK) {
         rx_buf_.clear();
         return;
