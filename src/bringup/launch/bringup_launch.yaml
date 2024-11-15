@@ -1,0 +1,18 @@
+launch:
+
+- include:
+    file: "$(find-pkg-share serial_driver)/launch/serial_driver_bridge_node.launch.py"
+    arg:
+    -
+      name: "params_file"
+      value: "$(find-pkg-share bringup)/params/serial_bridge.yaml"
+
+- node:
+    pkg: "cobs_bridge"
+    exec: "cobs_bridge"
+    name: "cobs_bridge_node"
+
+- node:
+    pkg: "minimal_robot_controller"
+    exec: "minimal_robot_controller"
+    name: "minimal_robot_controller_node"
