@@ -78,7 +78,7 @@ private:
 
   void rx_sub_cb(const cobs_bridge_msgs::msg::COBSBridgeMessage &msg) {
     if (msg.id == 2 && msg.data.size() == sizeof(Pose)) {
-      auto pose = reinterpret_cast<Pose *>(msg.data.data());
+      auto pose = reinterpret_cast<const Pose *>(msg.data.data());
       geometry_msgs::msg::PoseStamped pose_stamped;
       pose_stamped.header.stamp = get_clock()->now();
       pose_stamped.header.frame_id = "map";
