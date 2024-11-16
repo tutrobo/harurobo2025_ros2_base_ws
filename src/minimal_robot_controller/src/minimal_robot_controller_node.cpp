@@ -111,7 +111,7 @@ private:
     geometry_msgs::msg::Twist twist;
     twist.linear.x = msg.axes[0];
     twist.linear.y = -msg.axes[1];
-    twist.angular.z = -msg.axes[2];
+    twist.angular.z = -0.5 * msg.axes[2];
     cmd_vel_pub_->publish(twist);
   }
 };
