@@ -43,23 +43,23 @@ class MinimalRobotControllerNode : public rclcpp::Node {
 public:
   MinimalRobotControllerNode() : Node("minimal_robot_controller_node") {
     tx_pub_ = this->create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-        "cobs_bridge_node/tx", rclcpp::QoS(10).best_effort());
+        "cobs_bridge_node/tx", 10);
     current_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
-        "current_pose", rclcpp::QoS(10).best_effort());
-    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
-        "cmd_vel", rclcpp::QoS(10).best_effort());
+        "current_pose", 10);
+    cmd_vel_pub_ =
+        this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
 
     rx_sub_ =
         this->create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-            "cobs_bridge_node/rx", rclcpp::QoS(10).best_effort(),
+            "cobs_bridge_node/rx", 10,
             std::bind(&MinimalRobotControllerNode::rx_sub_cb, this,
                       std::placeholders::_1));
     cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
-        "cmd_vel", rclcpp::QoS(10).best_effort(),
+        "cmd_vel", 10,
         std::bind(&MinimalRobotControllerNode::cmd_vel_sub_cb, this,
                   std::placeholders::_1));
     joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
-        "joy", rclcpp::QoS(10).best_effort(),
+        "joy", 10,
         std::bind(&MinimalRobotControllerNode::joy_sub_cb, this,
                   std::placeholders::_1));
   }
