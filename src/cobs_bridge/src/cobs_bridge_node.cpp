@@ -75,7 +75,7 @@ private:
       }
 
       if (rx_buf_.size() < 3) {
-        return false;
+        return;
       }
       if (checksum(rx_buf_.data(), rx_buf_.size() - 2) !=
           rx_buf_[rx_buf_.size() - 2]) {
