@@ -59,6 +59,8 @@ private:
         return;
       }
       tx_msg.data.resize(res.out_len + 3);
+    } else {
+      tx_msg.data.resize(3);
     }
 
     tx_msg.data[0] = msg.id;
@@ -99,6 +101,8 @@ private:
           return;
         }
         rx_msg.data.resize(res.out_len);
+      } else {
+        rx_msg.data.resize(0);
       }
 
       rx_msg.id = rx_buf_[0];
