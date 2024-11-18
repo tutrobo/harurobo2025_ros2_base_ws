@@ -14,6 +14,5 @@ sudo podman run --privileged --rm -it --net=host --ipc=host \
 
 ```bash
 sudo podman run --privileged --rm -it --net=host --ipc=host \
-  -v /dev/serial0:/dev/serial0 \
   docker.io/eyr1n/harurobo2025-ros2-base-ws bash
 ```
