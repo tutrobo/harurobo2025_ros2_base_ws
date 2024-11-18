@@ -15,6 +15,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cobs_bridge_msgs REQUIRED)
 find_package(std_srvs REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 add_executable(${PROJECT_NAME}
   src/minimal_robot_controller_node.cpp
@@ -25,6 +26,7 @@ ament_target_dependencies(${PROJECT_NAME}
   sensor_msgs
   cobs_bridge_msgs
   std_srvs
+  tf2_geometry_msgs
 )
 
 install(

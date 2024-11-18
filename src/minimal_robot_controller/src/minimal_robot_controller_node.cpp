@@ -10,8 +10,11 @@
 
 #include <rclcpp/rclcpp.hpp>
 
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+
 #include <cobs_bridge_msgs/msg/cobs_bridge_message.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <geometry_msgs/msg/quaternion.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <sensor_msgs/msg/joy.hpp>
 #include <std_srvs/srv/trigger.hpp>
@@ -105,6 +108,10 @@ private:
   std::mutex reset_pose_mtx_;
   std::optional<std::promise<bool>> reset_pose_res_;
 
+  std::mutex quat_mtx_;
+  tf2::Quaternion current_quat_;
+  tf2::Quaternion offset_quat_;
+
   void rx_sub_cb(
       const std::shared_ptr<cobs_bridge_msgs::msg::COBSBridgeMessage> msg) {
     if (msg->id == 2 && msg->data.size() == sizeof(Pose)) {
@@ -118,6 +125,12 @@ private:
       current_pose_msg.pose.orientation.y = pose->orientation.y;
       current_pose_msg.pose.orientation.z = pose->orientation.z;
       current_pose_msg.pose.orientation.w = pose->orientation.w;
+      {
+        std::lock_guard lock_{quat_mtx_};
+        tf2::fromMsg(current_pose_msg.pose.orientation, current_quat_);
+        current_pose_msg.pose.orientation =
+            tf2::toMsg(current_quat_ * offset_quat_.inverse());
+      }
       current_pose_pub_->publish(current_pose_msg);
     } else if (msg->id == 3 && msg->data.size() == 0) {
       std::lock_guard lock_{reset_pose_mtx_};
@@ -166,6 +179,10 @@ private:
     tx_pub_->publish(tx_msg);
     std::future_status result = f.wait_for(std::chrono::seconds(3));
     if (result != std::future_status::timeout) {
+      {
+        std::lock_guard lock_{quat_mtx_};
+        offset_quat_ = current_quat_;
+      }
       response->success = f.get();
     } else {
       response->success = false;
