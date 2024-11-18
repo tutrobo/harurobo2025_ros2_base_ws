@@ -17,17 +17,17 @@ class COBSBridgeNode : public rclcpp::Node {
 public:
   COBSBridgeNode() : Node("cobs_bridge_node") {
     rx_pub_ = this->create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-        "~/rx", 10);
+        "~/rx", rclcpp::QoS(10).best_effort());
     serial_write_pub_ = this->create_publisher<std_msgs::msg::UInt8MultiArray>(
-        "serial_write", 10);
+        "serial_write", rclcpp::QoS(10).best_effort());
 
     tx_sub_ =
         this->create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-            "~/tx", 10,
+            "~/tx", rclcpp::QoS(10).best_effort(),
             std::bind(&COBSBridgeNode::tx_sub_cb, this, std::placeholders::_1));
     serial_read_sub_ =
         this->create_subscription<std_msgs::msg::UInt8MultiArray>(
-            "serial_read", 10,
+            "serial_read", rclcpp::QoS(10).best_effort(),
             std::bind(&COBSBridgeNode::serial_read_sub_cb, this,
                       std::placeholders::_1));
   }
