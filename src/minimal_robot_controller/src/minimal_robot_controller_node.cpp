@@ -1,3 +1,4 @@
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -46,37 +47,49 @@ struct Pose {
 class MinimalRobotControllerNode : public rclcpp::Node {
 public:
   MinimalRobotControllerNode() : Node("minimal_robot_controller_node") {
+    sub_cb_group_ =
+        create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
+    srv_cb_group_ = create_callback_group(rclcpp::CallbackGroupType::Reentrant);
+
     // pub
-    tx_pub_ = this->create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>(
+    tx_pub_ = create_publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>(
         "cobs_bridge_node/tx", rclcpp::QoS(10).best_effort());
-    current_pose_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
+    current_pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
         "current_pose", rclcpp::QoS(10).best_effort());
-    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(
+    cmd_vel_pub_ = create_publisher<geometry_msgs::msg::Twist>(
         "cmd_vel", rclcpp::QoS(10).best_effort());
 
     // sub
-    rx_sub_ =
-        this->create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
-            "cobs_bridge_node/rx", rclcpp::QoS(10).best_effort(),
-            std::bind(&MinimalRobotControllerNode::rx_sub_cb, this,
-                      std::placeholders::_1));
-    cmd_vel_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
+    rclcpp::SubscriptionOptions sub_options;
+    sub_options.callback_group = sub_cb_group_;
+    rx_sub_ = create_subscription<cobs_bridge_msgs::msg::COBSBridgeMessage>(
+        "cobs_bridge_node/rx", rclcpp::QoS(10).best_effort(),
+        std::bind(&MinimalRobotControllerNode::rx_sub_cb, this,
+                  std::placeholders::_1),
+        sub_options);
+    cmd_vel_sub_ = create_subscription<geometry_msgs::msg::Twist>(
         "cmd_vel", rclcpp::QoS(10).best_effort(),
         std::bind(&MinimalRobotControllerNode::cmd_vel_sub_cb, this,
-                  std::placeholders::_1));
-    joy_sub_ = this->create_subscription<sensor_msgs::msg::Joy>(
+                  std::placeholders::_1),
+        sub_options);
+    joy_sub_ = create_subscription<sensor_msgs::msg::Joy>(
         "joy", rclcpp::QoS(10),
         std::bind(&MinimalRobotControllerNode::joy_sub_cb, this,
-                  std::placeholders::_1));
+                  std::placeholders::_1),
+        sub_options);
 
     // service
-    reset_pose_srv_ = this->create_service<example_interfaces::srv::Trigger>(
+    reset_pose_srv_ = create_service<example_interfaces::srv::Trigger>(
         "reset_pose",
         std::bind(&MinimalRobotControllerNode::reset_pose_srv_cb, this,
-                  std::placeholders::_1, std::placeholders::_2));
+                  std::placeholders::_1, std::placeholders::_2),
+        rmw_qos_profile_services_default, srv_cb_group_);
   }
 
 private:
+  rclcpp::CallbackGroup::SharedPtr sub_cb_group_;
+  rclcpp::CallbackGroup::SharedPtr srv_cb_group_;
+
   rclcpp::Publisher<cobs_bridge_msgs::msg::COBSBridgeMessage>::SharedPtr
       tx_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr
@@ -90,27 +103,27 @@ private:
 
   rclcpp::Service<example_interfaces::srv::Trigger>::SharedPtr reset_pose_srv_;
   std::mutex reset_pose_mtx_;
-  std::optional<std::promise<bool>> reset_pose_result_;
+  std::optional<std::promise<bool>> reset_pose_res_;
 
   void rx_sub_cb(
       const std::shared_ptr<cobs_bridge_msgs::msg::COBSBridgeMessage> msg) {
     if (msg->id == 2 && msg->data.size() == sizeof(Pose)) {
       auto pose = reinterpret_cast<const Pose *>(msg->data.data());
-      geometry_msgs::msg::PoseStamped pose_stamped;
-      pose_stamped.header.stamp = get_clock()->now();
-      pose_stamped.header.frame_id = "map";
-      pose_stamped.pose.position.x = pose->position.x;
-      pose_stamped.pose.position.y = pose->position.y;
-      pose_stamped.pose.orientation.x = pose->orientation.x;
-      pose_stamped.pose.orientation.y = pose->orientation.y;
-      pose_stamped.pose.orientation.z = pose->orientation.z;
-      pose_stamped.pose.orientation.w = pose->orientation.w;
-      current_pose_pub_->publish(pose_stamped);
+      geometry_msgs::msg::PoseStamped current_pose_msg;
+      current_pose_msg.header.stamp = get_clock()->now();
+      current_pose_msg.header.frame_id = "map";
+      current_pose_msg.pose.position.x = pose->position.x;
+      current_pose_msg.pose.position.y = pose->position.y;
+      current_pose_msg.pose.orientation.x = pose->orientation.x;
+      current_pose_msg.pose.orientation.y = pose->orientation.y;
+      current_pose_msg.pose.orientation.z = pose->orientation.z;
+      current_pose_msg.pose.orientation.w = pose->orientation.w;
+      current_pose_pub_->publish(current_pose_msg);
     } else if (msg->id == 3 && msg->data.size() == 0) {
       std::lock_guard lock_{reset_pose_mtx_};
-      if (reset_pose_result_) {
-        reset_pose_result_->set_value(true);
-        reset_pose_result_ = std::nullopt;
+      if (reset_pose_res_) {
+        reset_pose_res_->set_value(true);
+        reset_pose_res_ = std::nullopt;
       }
     }
   }
@@ -121,13 +134,13 @@ private:
     twist.linear.y = msg->linear.y;
     twist.z = msg->angular.z;
 
-    cobs_bridge_msgs::msg::COBSBridgeMessage cobs;
-    cobs.id = 1;
-    cobs.data.resize(sizeof(Twist));
+    cobs_bridge_msgs::msg::COBSBridgeMessage tx_msg;
+    tx_msg.id = 1;
+    tx_msg.data.resize(sizeof(Twist));
     std::copy(reinterpret_cast<uint8_t *>(&twist),
               reinterpret_cast<uint8_t *>(&twist) + sizeof(Twist),
-              cobs.data.begin());
-    tx_pub_->publish(cobs);
+              tx_msg.data.begin());
+    tx_pub_->publish(tx_msg);
   }
 
   void joy_sub_cb(const std::shared_ptr<sensor_msgs::msg::Joy> msg) {
@@ -146,15 +159,26 @@ private:
       std::lock_guard lock_{reset_pose_mtx_};
       std::promise<bool> p;
       f = std::move(p.get_future());
-      reset_pose_result_ = std::optional{std::move(p)};
+      reset_pose_res_ = std::optional{std::move(p)};
     }
-    response->success = f.get();
+    cobs_bridge_msgs::msg::COBSBridgeMessage tx_msg;
+    tx_msg.id = 3;
+    tx_pub_->publish(tx_msg);
+    std::future_status result = f.wait_for(std::chrono::seconds(3));
+    if (result != std::future_status::timeout) {
+      response->success = f.get();
+    } else {
+      response->success = false;
+    }
   }
 };
 
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<MinimalRobotControllerNode>());
+  auto node = std::make_shared<MinimalRobotControllerNode>();
+  rclcpp::executors::MultiThreadedExecutor executor;
+  executor.add_node(node);
+  executor.spin();
   rclcpp::shutdown();
   return 0;
 }
