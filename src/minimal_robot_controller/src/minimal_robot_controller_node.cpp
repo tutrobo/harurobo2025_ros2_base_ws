@@ -11,10 +11,10 @@
 #include <rclcpp/rclcpp.hpp>
 
 #include <cobs_bridge_msgs/msg/cobs_bridge_message.hpp>
-#include <example_interfaces/srv/trigger.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
 #include <sensor_msgs/msg/joy.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 // id 1: /cmd_vel
 // id 2: /current_pose
@@ -79,7 +79,7 @@ public:
         sub_options);
 
     // service
-    reset_pose_srv_ = create_service<example_interfaces::srv::Trigger>(
+    reset_pose_srv_ = create_service<std_srvs::srv::Trigger>(
         "reset_pose",
         std::bind(&MinimalRobotControllerNode::reset_pose_srv_cb, this,
                   std::placeholders::_1, std::placeholders::_2),
@@ -101,7 +101,7 @@ private:
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Joy>::SharedPtr joy_sub_;
 
-  rclcpp::Service<example_interfaces::srv::Trigger>::SharedPtr reset_pose_srv_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr reset_pose_srv_;
   std::mutex reset_pose_mtx_;
   std::optional<std::promise<bool>> reset_pose_res_;
 
@@ -152,8 +152,8 @@ private:
   }
 
   void reset_pose_srv_cb(
-      const std::shared_ptr<example_interfaces::srv::Trigger::Request> request,
-      std::shared_ptr<example_interfaces::srv::Trigger::Response> response) {
+      const std::shared_ptr<std_srvs::srv::Trigger::Request> request,
+      std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
     std::future<bool> f;
     {
       std::lock_guard lock_{reset_pose_mtx_};

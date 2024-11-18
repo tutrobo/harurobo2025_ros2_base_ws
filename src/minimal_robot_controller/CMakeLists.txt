@@ -14,7 +14,7 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(cobs_bridge_msgs REQUIRED)
-find_package(example_interfaces REQUIRED)
+find_package(std_srvs REQUIRED)
 
 add_executable(${PROJECT_NAME}
   src/minimal_robot_controller_node.cpp
@@ -24,7 +24,7 @@ ament_target_dependencies(${PROJECT_NAME}
   geometry_msgs
   sensor_msgs
   cobs_bridge_msgs
-  example_interfaces
+  std_srvs
 )
 
 install(
