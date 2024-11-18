@@ -110,7 +110,7 @@ private:
 
   std::mutex quat_mtx_;
   tf2::Quaternion current_quat_;
-  tf2::Quaternion offset_quat_;
+  std::optional<tf2::Quaternion> offset_quat_;
 
   void rx_sub_cb(
       const std::shared_ptr<cobs_bridge_msgs::msg::COBSBridgeMessage> msg) {
@@ -128,8 +128,10 @@ private:
       {
         std::lock_guard lock_{quat_mtx_};
         tf2::fromMsg(current_pose_msg.pose.orientation, current_quat_);
-        current_pose_msg.pose.orientation =
-            tf2::toMsg(current_quat_ * offset_quat_.inverse());
+        if (offset_quat_) {
+          current_pose_msg.pose.orientation =
+              tf2::toMsg(current_quat_ * offset_quat_->inverse());
+        }
       }
       current_pose_pub_->publish(current_pose_msg);
     } else if (msg->id == 3 && msg->data.size() == 0) {
@@ -172,7 +174,7 @@ private:
       std::lock_guard lock_{reset_pose_mtx_};
       std::promise<bool> p;
       f = std::move(p.get_future());
-      reset_pose_res_ = std::optional{std::move(p)};
+      reset_pose_res_ = std::move(p);
     }
     cobs_bridge_msgs::msg::COBSBridgeMessage tx_msg;
     tx_msg.id = 3;
