@@ -48,19 +48,23 @@ private:
 
   void tx_sub_cb(const cobs_bridge_msgs::msg::COBSBridgeMessage &msg) {
     std_msgs::msg::UInt8MultiArray tx_msg;
+
     // id(1 byte) + data(n byte) + checksum(1 byte) + delimiter(1 byte)
-    tx_msg.data.resize(COBS_ENCODE_DST_BUF_LEN_MAX(msg.data.size()) + 3);
-    cobs_encode_result res =
-        cobs_encode(tx_msg.data.data() + 1, tx_msg.data.size() - 3,
-                    msg.data.data(), msg.data.size());
-    if (res.status != COBS_ENCODE_OK) {
-      return;
+    if (!msg.data.empty()) {
+      tx_msg.data.resize(COBS_ENCODE_DST_BUF_LEN_MAX(msg.data.size()) + 3);
+      cobs_encode_result res =
+          cobs_encode(tx_msg.data.data() + 1, tx_msg.data.size() - 3,
+                      msg.data.data(), msg.data.size());
+      if (res.status != COBS_ENCODE_OK) {
+        return;
+      }
+      tx_msg.data.resize(res.out_len + 3);
     }
+
     tx_msg.data[0] = msg.id;
-    tx_msg.data[res.out_len + 1] =
-        checksum(tx_msg.data.data(), res.out_len + 1);
-    tx_msg.data[res.out_len + 2] = 0; // delimiter
-    tx_msg.data.resize(res.out_len + 3);
+    tx_msg.data[tx_msg.data.size() - 2] =
+        checksum(tx_msg.data.data(), tx_msg.data.size() - 2);
+    tx_msg.data[tx_msg.data.size() - 1] = 0; // delimiter
     serial_write_pub_->publish(tx_msg);
   }
 
@@ -75,6 +79,7 @@ private:
       }
 
       if (rx_buf_.size() < 3) {
+        rx_buf_.clear();
         return;
       }
       if (checksum(rx_buf_.data(), rx_buf_.size() - 2) !=
@@ -82,19 +87,22 @@ private:
         rx_buf_.clear();
         return;
       }
+
       cobs_bridge_msgs::msg::COBSBridgeMessage rx_msg;
-      rx_msg.data.resize(COBS_DECODE_DST_BUF_LEN_MAX(rx_buf_.size() - 3));
-      cobs_decode_result res =
-          cobs_decode(rx_msg.data.data(), rx_msg.data.size(),
-                      rx_buf_.data() + 1, rx_buf_.size() - 3);
-      if (res.status != COBS_DECODE_OK) {
-        rx_buf_.clear();
-        return;
+      if (rx_buf_.size() > 3) {
+        rx_msg.data.resize(COBS_DECODE_DST_BUF_LEN_MAX(rx_buf_.size() - 3));
+        cobs_decode_result res =
+            cobs_decode(rx_msg.data.data(), rx_msg.data.size(),
+                        rx_buf_.data() + 1, rx_buf_.size() - 3);
+        if (res.status != COBS_DECODE_OK) {
+          rx_buf_.clear();
+          return;
+        }
+        rx_msg.data.resize(res.out_len);
       }
+
       rx_msg.id = rx_buf_[0];
       rx_buf_.clear();
-
-      rx_msg.data.resize(res.out_len);
       rx_pub_->publish(rx_msg);
     }
   }
