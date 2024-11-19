@@ -10,7 +10,12 @@ launch:
 - node:
     pkg: "cobs_bridge"
     exec: "cobs_bridge"
-    name: "cobs_bridge_node"
+    name: "cobs_bridge"
+
+- node:
+    pkg: "cobs_bridge"
+    exec: "cobs_bridge_service"
+    name: "cobs_bridge_service"
 
 - node:
     pkg: "minimal_robot_controller"

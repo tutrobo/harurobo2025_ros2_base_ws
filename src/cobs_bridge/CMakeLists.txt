@@ -12,7 +12,7 @@ find_package(ament_cmake REQUIRED)
 # find_package(<dependency> REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(cobs_bridge_msgs REQUIRED)
+find_package(cobs_bridge_interfaces REQUIRED)
 
 add_executable(${PROJECT_NAME}
   src/cobs_bridge_node.cpp
@@ -22,11 +22,19 @@ target_include_directories(${PROJECT_NAME} PRIVATE cobs-c)
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   std_msgs
-  cobs_bridge_msgs
+  cobs_bridge_interfaces
+)
+
+add_executable(${PROJECT_NAME}_service
+  src/cobs_bridge_service_node.cpp
+)
+ament_target_dependencies(${PROJECT_NAME}_service
+  rclcpp
+  cobs_bridge_interfaces
 )
 
 install(
-  TARGETS ${PROJECT_NAME}
+  TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_service
   DESTINATION lib/${PROJECT_NAME}
 )
 

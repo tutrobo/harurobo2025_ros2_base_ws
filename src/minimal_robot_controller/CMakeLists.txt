@@ -13,7 +13,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(cobs_bridge_msgs REQUIRED)
+find_package(cobs_bridge_interfaces REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 
@@ -24,7 +24,7 @@ ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   geometry_msgs
   sensor_msgs
-  cobs_bridge_msgs
+  cobs_bridge_interfaces
   std_srvs
   tf2_geometry_msgs
 )
