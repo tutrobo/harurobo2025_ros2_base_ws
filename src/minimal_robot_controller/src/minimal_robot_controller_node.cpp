@@ -1,7 +1,5 @@
 #include <chrono>
 #include <functional>
-#include <mutex>
-#include <optional>
 
 #include <rclcpp/rclcpp.hpp>
 
@@ -100,10 +98,6 @@ private:
   rclcpp::Client<cobs_bridge_interfaces::srv::COBSBridgeService>::SharedPtr
       call_client_;
 
-  std::mutex quat_mtx_;
-  tf2::Quaternion current_quat_;
-  std::optional<tf2::Quaternion> offset_quat_;
-
   void rx_sub_cb(
       const cobs_bridge_interfaces::msg::COBSBridgeMessage::SharedPtr msg) {
     if (msg->id == 2 && msg->data.size() == sizeof(Pose)) {
@@ -117,14 +111,6 @@ private:
       current_pose_msg.pose.orientation.y = pose->orientation.y;
       current_pose_msg.pose.orientation.z = pose->orientation.z;
       current_pose_msg.pose.orientation.w = pose->orientation.w;
-      {
-        std::lock_guard lock_{quat_mtx_};
-        tf2::fromMsg(current_pose_msg.pose.orientation, current_quat_);
-        if (offset_quat_) {
-          current_pose_msg.pose.orientation =
-              tf2::toMsg(current_quat_ * offset_quat_->inverse());
-        }
-      }
       current_pose_pub_->publish(current_pose_msg);
     }
   }
@@ -148,7 +134,7 @@ private:
     geometry_msgs::msg::Twist twist;
     twist.linear.x = msg->axes[0];
     twist.linear.y = -msg->axes[1];
-    twist.angular.z = -0.5 * msg->axes[2];
+    twist.angular.z = -2 * M_PI * msg->axes[2];
     cmd_vel_pub_->publish(twist);
   }
 
@@ -164,10 +150,6 @@ private:
     if (status == std::future_status::ready) {
       auto call_response = result_future.get();
       response->success = call_response->success;
-      {
-        std::lock_guard lock_{quat_mtx_};
-        offset_quat_ = current_quat_;
-      }
     } else {
       response->success = false;
     }
