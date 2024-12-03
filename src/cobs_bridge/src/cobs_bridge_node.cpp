@@ -31,7 +31,7 @@ public:
 
 private:
   std::deque<uint8_t> serial_read_queue_;
-  std::vector<uint8_t> rx_buf_;
+  std::vector<uint8_t> buf_;
 
   rclcpp::Publisher<cobs_bridge_interfaces::msg::COBSBridgeMessage>::SharedPtr
       rx_pub_;
@@ -48,23 +48,16 @@ private:
     std_msgs::msg::UInt8MultiArray tx_msg;
 
     // id(1 byte) + data(n byte) + checksum(1 byte) + delimiter(1 byte)
-    if (!msg->data.empty()) {
-      tx_msg.data.resize(COBS_ENCODE_DST_BUF_LEN_MAX(msg->data.size()) + 3);
-      cobs_encode_result res =
-          cobs_encode(tx_msg.data.data() + 1, tx_msg.data.size() - 3,
-                      msg->data.data(), msg->data.size());
-      if (res.status != COBS_ENCODE_OK) {
-        return;
-      }
-      tx_msg.data.resize(res.out_len + 3);
-    } else {
-      tx_msg.data.resize(3);
+    std::vector<uint8_t> src(msg->data.size() + 1);
+    src[0] = msg->id;
+    std::copy(msg->data.begin(), msg->data.end(), src.begin() + 1);
+    src.push_back(checksum(src.data(), src.size()));
+
+    std::vector<uint8_t> dest;
+    if (!cobs_encode(src, tx_msg.data)) {
+      return;
     }
 
-    tx_msg.data[0] = msg->id;
-    tx_msg.data[tx_msg.data.size() - 2] =
-        checksum(tx_msg.data.data(), tx_msg.data.size() - 2);
-    tx_msg.data[tx_msg.data.size() - 1] = 0; // delimiter
     serial_write_pub_->publish(tx_msg);
   }
 
@@ -78,33 +71,22 @@ private:
         return;
       }
 
-      if (rx_buf_.size() < 3) {
-        rx_buf_.clear();
-        return;
+      std::vector<uint8_t> dest;
+      if (!cobs_decode(buf_, dest)) {
+        buf_.clear();
+        continue;
       }
-      if (checksum(rx_buf_.data(), rx_buf_.size() - 2) !=
-          rx_buf_[rx_buf_.size() - 2]) {
-        rx_buf_.clear();
-        return;
+
+      if (checksum(dest.data(), dest.size() - 1) != dest[dest.size()]) {
+        buf_.clear();
+        continue;
       }
 
       cobs_bridge_interfaces::msg::COBSBridgeMessage rx_msg;
-      if (rx_buf_.size() > 3) {
-        rx_msg.data.resize(COBS_DECODE_DST_BUF_LEN_MAX(rx_buf_.size() - 3));
-        cobs_decode_result res =
-            cobs_decode(rx_msg.data.data(), rx_msg.data.size(),
-                        rx_buf_.data() + 1, rx_buf_.size() - 3);
-        if (res.status != COBS_DECODE_OK) {
-          rx_buf_.clear();
-          return;
-        }
-        rx_msg.data.resize(res.out_len);
-      } else {
-        rx_msg.data.resize(0);
-      }
-
-      rx_msg.id = rx_buf_[0];
-      rx_buf_.clear();
+      rx_msg.id = dest[0];
+      rx_msg.data.resize(dest.size() - 1);
+      std::copy(dest.begin() + 1, dest.end(), rx_msg.data.begin());
+      buf_.clear();
       rx_pub_->publish(rx_msg);
     }
   }
@@ -113,7 +95,7 @@ private:
     while (!serial_read_queue_.empty()) {
       uint8_t tmp = serial_read_queue_.front();
       serial_read_queue_.pop_front();
-      rx_buf_.push_back(tmp);
+      buf_.push_back(tmp);
       if (tmp == 0x00) {
         return true;
       }
@@ -127,6 +109,32 @@ private:
       res += data[i];
     }
     return 0x80 | (res & 0x7F);
+  }
+
+  bool cobs_encode(const std::vector<uint8_t> &src,
+                   std::vector<uint8_t> &dest) {
+    dest.resize(COBS_ENCODE_DST_BUF_LEN_MAX(src.size()));
+    cobs_encode_result res =
+        ::cobs_encode(dest.data(), dest.size(), src.data(), src.size());
+    if (res.status != COBS_ENCODE_OK) {
+      return false;
+    }
+    dest.resize(res.out_len + 1);
+    dest[res.out_len] = 0;
+    return true;
+  }
+
+  bool cobs_decode(const std::vector<uint8_t> &src,
+                   std::vector<uint8_t> &dest) {
+    dest.resize(COBS_DECODE_DST_BUF_LEN_MAX(src.size()));
+    cobs_decode_result res =
+        ::cobs_decode(dest.data(), dest.size(), src.data(), src.size());
+    if (res.status != COBS_DECODE_OK &&
+        res.status != COBS_DECODE_ZERO_BYTE_IN_INPUT) {
+      return false;
+    }
+    dest.resize(res.out_len);
+    return true;
   }
 };
 
